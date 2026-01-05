@@ -1,0 +1,117 @@
+body {
+    background-color: #F0EFF2;
+    font-family: "Inter", sans-serif;
+}
+
+.container {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 20px;
+}
+
+.page-title {
+    font-size: 30px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    border-left: 8px solid black;
+    padding-left: 10px;
+}
+
+.detail-card {
+    margin-top: 70px;
+    background: white;
+    border-radius: 10px;
+    padding: 0;
+}
+
+.detail-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.detail-table th,
+.detail-table td {
+    padding: 25px 40px;
+    font-size: 16px;
+    border-bottom: 2px solid #E1E1E1;
+    letter-spacing: 0.15em;
+    font-weight: bold;
+}
+
+.detail-table tr:last-child th,
+.detail-table tr:last-child td {
+    border-bottom: none;
+}
+
+.detail-table th {
+    width: 180px;
+    color: #737373;
+    text-align: left;
+}
+
+.date-row span:first-child {
+    margin-right: 80px;
+    font-weight: bold;
+}
+
+.time-row {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+}
+
+.time-input {
+    width: 110px;
+    padding: 5px 10px;
+    border: 1px solid #E1E1E1;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    letter-spacing: 0.15em;
+    height: 28px;
+}
+
+.tilde {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.detail-button-area {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 50px;
+}
+
+.approve-button {
+    background-color: black;
+    color: white;
+    border: none;
+    font-size: 22px;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+    letter-spacing: 0.15em;
+    width: 130px;
+    height: 50px;
+}
+
+.approve-button:hover {
+    opacity: 0.85;
+}
+
+.approved-button {
+    background-color: #696969;
+    color: white;
+    border-radius: 5px;
+    width: 130px;
+    height: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 0.15em;
+    cursor: default;
+}

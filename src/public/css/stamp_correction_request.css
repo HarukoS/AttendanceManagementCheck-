@@ -1,0 +1,88 @@
+body {
+    background-color: #F0EFF2;
+    font-family: "Inter", sans-serif;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 20px;
+}
+
+.page-title {
+    font-size: 30px;
+    font-weight: bold;
+    margin-bottom: 30px;
+    border-left: 8px solid black;
+    padding-left: 10px;
+}
+
+.tab {
+    padding: 12px 40px;
+    margin-bottom: 30px;
+    border-bottom: 1px solid black;
+}
+
+.tab a {
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: normal;
+    letter-spacing: 0.15em;
+    margin-left: 3%;
+    margin-right: 10%;
+    color: black;
+    font-family: "Inter", sans-serif;
+}
+
+.tab a.active {
+    font-weight: bold;
+}
+
+.request-card {
+    background: white;
+    border-radius: 10px;
+    padding: 10px 0;
+}
+
+.request-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 16px;
+}
+
+.request-table th,
+.request-table td {
+    padding: 12px 20px;
+    text-align: left;
+    letter-spacing: 0.15em;
+    width: 150px;
+    font-weight: bold;
+    color: #737373;
+}
+
+.request-table th:first-child,
+.request-table td:first-child {
+    text-align: center;
+}
+
+.request-table th {
+    border-bottom: 3px solid #E1E1E1;
+}
+
+.request-table td {
+    border-bottom: 1px solid #E1E1E1;
+}
+
+.request-table tr:last-child td {
+    border-bottom: none;
+}
+
+.detail-link {
+    color: black;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.detail-link:hover {
+    text-decoration: underline;
+}
