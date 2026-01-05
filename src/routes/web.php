@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AttendanceController;
 use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
+use Illuminate\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
@@ -15,33 +16,19 @@ use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 |
 */
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/attendance', [AttendanceController::class, 'attendance'])
         ->name('attendance');
 });
-Route::get('/attendance/list', [AttendanceController::class, 'attendanceList'])
-    ->name('attendance.list');
 
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/attendance/list', [AttendanceController::class, 'attendanceList'])
+        ->name('attendance.list');
+});
+
+Route::middleware(['auth', 'verified'])->group(function () {
 Route::get('/attendance/detail/{id}', [AttendanceController::class, 'attendanceDetail'])->name('attendance.detail');
-
-Route::post(
-    '/attendance/detail/{work}/request',
-    [AttendanceController::class, 'storeCorrectionRequest']
-)->name('attendance.request.store');
-
-Route::get('/stamp_correction_request/list', [AttendanceController::class, 'userStampCorrectionList'])
-    ->middleware('auth')
-    ->name('stamp.correction.user.list');
-
-// スタッフ一覧
-Route::get('/admin/staff/list', [AttendanceController::class, 'staffList'])
-    ->name('admin.staff.list')
-    ->middleware(['auth', 'can:admin']);
-
-// スタッフ別勤怠一覧
-Route::get('/admin/attendance/staff/{id}', [AttendanceController::class, 'adminAttendanceStaff'])
-    ->name('admin.attendance.staff')
-    ->middleware(['auth', 'can:admin']);
+});
 
 //出勤
 Route::post('/work/start', [AttendanceController::class, 'start'])->name('work.start');
@@ -54,6 +41,25 @@ Route::post('/rest/start', [AttendanceController::class, 'rest'])->name('rest.st
 
 //休憩終了
 Route::post('/rest/end', [AttendanceController::class, 'restEnd'])->name('rest.end');
+
+Route::post(
+    '/attendance/detail/{work}/request',
+    [AttendanceController::class, 'storeCorrectionRequest']
+)->name('attendance.request.store');
+
+Route::get('/stamp_correction_request/list', [AttendanceController::class, 'userStampCorrectionList'])
+    ->middleware(['auth', 'verified'])
+    ->name('stamp.correction.user.list');
+
+// スタッフ一覧
+Route::get('/admin/staff/list', [AttendanceController::class, 'staffList'])
+    ->name('admin.staff.list')
+    ->middleware(['auth', 'can:admin']);
+
+// スタッフ別勤怠一覧
+Route::get('/admin/attendance/staff/{id}', [AttendanceController::class, 'adminAttendanceStaff'])
+    ->name('admin.attendance.staff')
+    ->middleware(['auth', 'can:admin']);
 
 // 管理者用ログイン画面
 Route::get('/admin/login', fn() => view('admin_login'))
@@ -84,3 +90,13 @@ Route::middleware(['auth', 'can:admin'])->group(function () {
     Route::post('/request/approve/{id}', [AttendanceController::class, 'approveCorrectionRequest'])
         ->name('admin.request.approve');
 });
+
+// メール認証
+Route::get('/verify-info', function () {
+    return view('auth.verify-email');
+})->name('verify.info');
+
+Route::post('/email/verification-notification', function (Request $request) {
+    $request->user()->sendEmailVerificationNotification();
+    return back()->with('message', 'Verification link sent!');
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');

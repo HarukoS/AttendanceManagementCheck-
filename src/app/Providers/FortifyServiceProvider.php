@@ -3,19 +3,22 @@
 namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
+use App\Actions\Fortify\LoginRequest;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Str;
-use Laravel\Fortify\Fortify;
-use Laravel\Fortify\Contracts\LogoutResponse;
-use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\ServiceProvider;
 use Laravel\Fortify\Contracts\LoginResponse;
+use Laravel\Fortify\Contracts\LogoutResponse;
+use Laravel\Fortify\Fortify;
+use Illuminate\Validation\ValidationException;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -45,18 +48,35 @@ class FortifyServiceProvider extends ServiceProvider
             return view('auth.login');
         });
 
+        Fortify::verifyEmailView(function () {
+            return view('auth.verify-email');
+        });
+
         // 管理者／ユーザー判定付き認証
         Fortify::authenticateUsing(function (Request $request) {
 
-            $user = User::where('email', $request->email)->first();
+            $loginRequest = LoginRequest::createFrom($request);
 
-            if (! $user || ! Hash::check($request->password, $user->password)) {
-                return null;
-            }
+            // ✅ 日本語バリデーション
+            Validator::make(
+                $loginRequest->all(),
+                $loginRequest->rules(),
+                $loginRequest->messages()
+            )->validate();
 
-            // 管理者ログイン画面から来た場合は role=admin のみ許可
+            // 認証失敗・メール未認証・レート制限はここで例外
+            $loginRequest->authenticate();
+
+            // ここから追加条件
+            $user = auth()->user();
+
+            // 管理者ログイン画面制御
             if ($request->routeIs('admin.login.submit') && $user->role !== 'admin') {
-                return null;
+                Auth::logout();
+
+                throw ValidationException::withMessages([
+                    'email' => '管理者アカウントではありません。',
+                ]);
             }
 
             return $user;
