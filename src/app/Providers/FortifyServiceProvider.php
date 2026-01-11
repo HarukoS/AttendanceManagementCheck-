@@ -57,20 +57,16 @@ class FortifyServiceProvider extends ServiceProvider
 
             $loginRequest = LoginRequest::createFrom($request);
 
-            // ✅ 日本語バリデーション
             Validator::make(
                 $loginRequest->all(),
                 $loginRequest->rules(),
                 $loginRequest->messages()
             )->validate();
 
-            // 認証失敗・メール未認証・レート制限はここで例外
             $loginRequest->authenticate();
 
-            // ここから追加条件
             $user = auth()->user();
 
-            // 管理者ログイン画面制御
             if ($request->routeIs('admin.login.submit') && $user->role !== 'admin') {
                 Auth::logout();
 
@@ -108,7 +104,7 @@ class FortifyServiceProvider extends ServiceProvider
         $this->app->instance(LogoutResponse::class, new class implements LogoutResponse {
             public function toResponse($request)
             {
-                return redirect('/login'); // ログアウト後にログインページへ
+                return redirect('/login');
             }
         });
     }

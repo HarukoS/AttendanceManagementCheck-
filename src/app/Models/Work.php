@@ -24,13 +24,11 @@ class Work extends Model
         'work_end'   => 'datetime',
     ];
 
-    // 勤怠は1ユーザーに属する
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // 勤怠は複数の休憩を持つ
     public function rests()
     {
         return $this->hasMany(Rest::class);
@@ -91,5 +89,10 @@ class Work extends Model
     public function requests()
     {
         return $this->hasMany(Request::class);
+    }
+
+    public function details()
+    {
+        return $this->hasMany(RequestDetail::class);
     }
 }

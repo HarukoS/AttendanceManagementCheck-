@@ -27,6 +27,11 @@ class Rest extends Model
         return $this->belongsTo(Work::class);
     }
 
+    public function details()
+    {
+        return $this->hasMany(RequestDetail::class);
+    }
+
     public function getMinutes()
     {
         if (!$this->rest_start || !$this->rest_end) {

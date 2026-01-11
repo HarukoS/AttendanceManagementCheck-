@@ -11,10 +11,12 @@ use Carbon\Carbon;
 use App\Models\Request as CorrectionRequest;
 use App\Models\RequestDetail;
 use App\Http\Requests\RequestRequest;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceController extends Controller
 {
+    /**
+     * 勤怠登録画面表示
+     */
     public function attendance()
     {
         $user = Auth::user();
@@ -23,43 +25,44 @@ class AttendanceController extends Controller
         return view('attendance', compact('user', 'now'));
     }
 
+    /**
+     * 出勤
+     */
     public function start(Request $request)
     {
         /** @var \App\Models\User $user */
         $user = auth()->user();
         $now = Carbon::now();
 
-        // 1. works テーブルに新規作成
         Work::create([
             'user_id' => $user->id,
             'date' => $now->toDateString(),
             'work_start' => $now->toTimeString(),
         ]);
 
-        // 2. users テーブルの status を 1 に更新
         $user->status = 1;
         $user->save();
 
         return redirect()->back();
     }
 
+    /**
+     * 退勤
+     */
     public function end(Request $request)
     {
         /** @var \App\Models\User $user */
         $user = auth()->user();
         $now = Carbon::now();
 
-        // 当日の work レコードを取得
         $work = Work::where('user_id', $user->id)
             ->where('date', $now->toDateString())
             ->first();
 
         if ($work) {
-            // work_end に現在時刻を保存
             $work->work_end = $now->toTimeString();
             $work->save();
 
-            // ユーザーの status を退勤済みに変更
             $user->status = 3;
             $user->save();
 
@@ -67,58 +70,57 @@ class AttendanceController extends Controller
         }
     }
 
+    /**
+     * 休憩入
+     */
     public function rest(Request $request)
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        // 今日の勤務データを取得（まだ退勤していないもの）
         $work = Work::where('user_id', $user->id)
             ->whereDate('date', Carbon::today())
             ->first();
 
-        // rests テーブルに休憩開始を登録
         Rest::create([
             'work_id'   => $work->id,
             'rest_start' => Carbon::now()->format('H:i:s'),
         ]);
 
-        // user の status を休憩中（2）へ変更
         $user->status = 2;
         $user->save();
 
         return redirect()->back();
     }
 
+    /**
+     * 休憩戻
+     */
     public function restEnd()
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        // 今日の勤務データを取得
         $work = Work::where('user_id', $user->id)
             ->whereDate('date', Carbon::today())
             ->first();
 
-        // 今日の勤務の、休憩終了していない（rest_end が null）休憩の最後の1件を取得
         $rest = Rest::where('work_id', $work->id)
             ->whereNull('rest_end')
             ->latest()
             ->first();
 
-        // 休憩終了時間を保存
         $rest->update([
             'rest_end' => Carbon::now()->format('H:i:s'),
         ]);
 
-        // user の status を出勤中（1）へ戻す
         $user->status = 1;
         $user->save();
 
         return redirect()->back();
     }
 
-    //ユーザー毎勤怠表ページ
+    //勤怠一覧表示
     public function attendanceList(Request $request)
     {
         $targetMonth = $request->query('month')
@@ -131,20 +133,17 @@ class AttendanceController extends Controller
         $start = $targetMonth->copy()->startOfMonth();
         $end   = $targetMonth->copy()->endOfMonth();
 
-        // 勤怠取得（date は date 型なので whereBetween でOK）
         $works = Work::with(['rests', 'requests.details'])
             ->where('user_id', Auth::id())
             ->whereBetween('date', [$start, $end])
             ->get()
             ->keyBy(fn($w) => $w->date->format('Y-m-d'));
 
-        // 修正後データを反映したカレンダー用配列
         $days = [];
         foreach ($start->daysUntil($end) as $date) {
             $work = $works[$date->format('Y-m-d')] ?? null;
 
             if ($work) {
-                // 承認済みの最新申請がある場合
                 $approvedRequest = $work->requests
                     ->where('status', 1)
                     ->sortByDesc('approved_at')
@@ -170,7 +169,6 @@ class AttendanceController extends Controller
                                     $rest = $work->rests->firstWhere('id', $detail->rest_id);
                                     if ($rest) $rest->rest_start = $detail->new_time;
                                 } else {
-                                    // 新規休憩（start）
                                     $newRestBuffer[] = (object)[
                                         'rest_start' => $detail->new_time,
                                         'rest_end'   => null,
@@ -183,7 +181,6 @@ class AttendanceController extends Controller
                                     $rest = $work->rests->firstWhere('id', $detail->rest_id);
                                     if ($rest) $rest->rest_end = $detail->new_time;
                                 } else {
-                                    // 新規休憩（end）
                                     $last = collect($newRestBuffer)->last();
                                     if ($last) {
                                         $last->rest_end = $detail->new_time;
@@ -193,7 +190,6 @@ class AttendanceController extends Controller
                         }
                     }
 
-                    // 新規休憩を rests に追加
                     foreach ($newRestBuffer as $newRest) {
                         $work->rests->push($newRest);
                     }
@@ -214,32 +210,29 @@ class AttendanceController extends Controller
         ));
     }
 
+    /**
+     * 勤怠詳細画面表示
+     */
     public function attendanceDetail(Request $request, $id)
     {
         $user = Auth::user();
 
         $work = Work::with(['rests', 'requests.details'])->findOrFail($id);
 
-        // 権限制御
         if ($user->role !== 'admin' && $work->user_id !== $user->id) {
             abort(403);
         }
 
-        // 承認待ち（最優先）
         $pendingRequest = $work->requests
             ->where('status', 0)
             ->sortByDesc('requested_at')
             ->first();
 
-        // 承認済み（次点）
         $approvedRequest = $work->requests
             ->where('status', 1)
             ->sortByDesc('approved_at')
             ->first();
 
-        /* ===========================
-     * 表示用 rests をコピー
-     * =========================== */
         $displayRests = $work->rests
             ->keyBy('id')
             ->map(function ($rest) {
@@ -250,9 +243,6 @@ class AttendanceController extends Controller
                 ];
             });
 
-        /* ===========================
-     * 表示用データ（初期）
-     * =========================== */
         $display = [
             'work_start' => $work->work_start,
             'work_end'   => $work->work_end,
@@ -261,9 +251,6 @@ class AttendanceController extends Controller
             'is_pending' => false,
         ];
 
-        /* ===========================
-     * pending → approved の順で反映
-     * =========================== */
         $targetRequest = $pendingRequest ?? $approvedRequest;
 
         if ($targetRequest) {
@@ -312,9 +299,6 @@ class AttendanceController extends Controller
             $display['is_pending'] = $targetRequest->status === 0;
         }
 
-        // =============================
-        // ④ コレクションのキーを数値にリセット
-        // =============================
         $display['rests'] = $display['rests']->values();
 
         return view('attendance_detail', compact(
@@ -324,6 +308,9 @@ class AttendanceController extends Controller
         ));
     }
 
+    /**
+     *勤怠の修正申請
+     */
     public function storeCorrectionRequest(RequestRequest $request, Work $work)
     {
         $user = Auth::user();
@@ -346,21 +333,12 @@ class AttendanceController extends Controller
             'requested_at' => now(),
         ]);
 
-        /* ======================
-     * 出勤・退勤
-     * ====================== */
         $this->storeWorkDiff($request, $work, $correctionRequest);
 
-        /* ======================
-     * 既存休憩
-     * ====================== */
         foreach ($work->rests as $index => $rest) {
             $this->storeRestDiff($request, $rest, $correctionRequest, $index);
         }
 
-        /* ======================
-     * ★ 新規休憩（ここが重要）
-     * ====================== */
         $newRest = $request->input('rests.new');
 
         if (!empty($newRest['rest_start']) || !empty($newRest['rest_end'])) {
@@ -406,7 +384,6 @@ class AttendanceController extends Controller
         Work $work,
         CorrectionRequest $correctionRequest
     ) {
-        // 出勤
         $oldStart = optional($work->work_start)?->format('H:i');
         $newStart = $request->input('work_start');
 
@@ -414,13 +391,12 @@ class AttendanceController extends Controller
             RequestDetail::create([
                 'request_id' => $correctionRequest->id,
                 'type'       => 'work_start',
-                'work_id'    => $work->id,   // ★
-                'old_time'   => $oldStart,   // ★
-                'new_time'   => $newStart,   // ★
+                'work_id'    => $work->id,
+                'old_time'   => $oldStart,
+                'new_time'   => $newStart,
             ]);
         }
 
-        // 退勤
         $oldEnd = optional($work->work_end)?->format('H:i');
         $newEnd = $request->input('work_end');
 
@@ -428,9 +404,9 @@ class AttendanceController extends Controller
             RequestDetail::create([
                 'request_id' => $correctionRequest->id,
                 'type'       => 'work_end',
-                'work_id'    => $work->id,   // ★
-                'old_time'   => $oldEnd,     // ★
-                'new_time'   => $newEnd,     // ★
+                'work_id'    => $work->id,
+                'old_time'   => $oldEnd,
+                'new_time'   => $newEnd,
             ]);
         }
     }
@@ -440,14 +416,12 @@ class AttendanceController extends Controller
         Rest $rest,
         CorrectionRequest $correctionRequest
     ) {
-        // ★ Blade と完全一致
         $input = $request->input("rests.{$rest->id}");
 
         if (! $input) {
             return;
         }
 
-        // 休憩開始
         $oldStart = optional($rest->rest_start)?->format('H:i');
         $newStart = $input['rest_start'] ?? null;
 
@@ -461,7 +435,6 @@ class AttendanceController extends Controller
             ]);
         }
 
-        // 休憩終了
         $oldEnd = optional($rest->rest_end)?->format('H:i');
         $newEnd = $input['rest_end'] ?? null;
 
@@ -476,27 +449,9 @@ class AttendanceController extends Controller
         }
     }
 
-    // private function storeNewRest(
-    //     Request $request,
-    //     CorrectionRequest $correctionRequest
-    // ) {
-    //     $input = $request->input('rests.new');
-
-    //     if (
-    //         empty($input['rest_start']) &&
-    //         empty($input['rest_end'])
-    //     ) {
-    //         return;
-    //     }
-
-    //     RequestDetail::create([
-    //         'request_id'     => $correctionRequest->id,
-    //         'type'           => 'rest_new',
-    //         'new_rest_start' => $input['rest_start'] ?? null,
-    //         'new_rest_end'   => $input['rest_end'] ?? null,
-    //     ]);
-    // }
-
+    /**
+     * 申請一覧画面表示
+     */
     public function userStampCorrectionList(Request $request)
     {
         $status = (int) $request->query('status', 0);
@@ -525,25 +480,24 @@ class AttendanceController extends Controller
         return view('stamp_correction_request', compact('requests', 'status'));
     }
 
+    /**
+     * 管理者用日時勤怠一覧表示
+     */
     public function adminAttendanceList(Request $request)
     {
-        // 表示対象日（なければ今日）
         $today = $request->query('date')
             ? Carbon::parse($request->query('date'))
             : Carbon::today();
 
-        // 前日・翌日
         $prevDay = $today->copy()->subDay()->toDateString();
         $nextDay = $today->copy()->addDay()->toDateString();
 
-        // 勤怠取得（requests.details も必ず eager load）
         $works = Work::with(['user', 'rests', 'requests.details'])
             ->whereDate('date', $today)
             ->get();
 
         foreach ($works as $work) {
 
-            // 承認済み最新申請
             $approvedRequest = $work->requests
                 ->where('status', 1)
                 ->sortByDesc('approved_at')
@@ -573,7 +527,6 @@ class AttendanceController extends Controller
                                 $rest->rest_start = $detail->new_time;
                             }
                         } else {
-                            // 新規休憩 start
                             $newRestBuffer[] = (object)[
                                 'rest_start' => $detail->new_time,
                                 'rest_end'   => null,
@@ -588,7 +541,6 @@ class AttendanceController extends Controller
                                 $rest->rest_end = $detail->new_time;
                             }
                         } else {
-                            // 新規休憩 end
                             $last = collect($newRestBuffer)->last();
                             if ($last) {
                                 $last->rest_end = $detail->new_time;
@@ -598,7 +550,6 @@ class AttendanceController extends Controller
                 }
             }
 
-            // 新規休憩を rests に追加
             foreach ($newRestBuffer as $newRest) {
                 $work->rests->push($newRest);
             }
@@ -612,11 +563,11 @@ class AttendanceController extends Controller
         ));
     }
 
+    /**
+     * 管理者用勤怠詳細画面表示
+     */
     public function adminAttendanceDetail(Request $request, $id)
     {
-        // ===========================
-        // 管理者専用
-        // ===========================
         if (Auth::user()->role !== 'admin') {
             abort(403);
         }
@@ -624,24 +575,16 @@ class AttendanceController extends Controller
         $work = Work::with(['user', 'rests', 'requests.details'])->findOrFail($id);
         $user = $work->user;
 
-        // ===========================
-        // 申請の取得
-        // ===========================
-        // 承認待ち（最優先）
         $pendingRequest = $work->requests
             ->where('status', 0)
             ->sortByDesc('requested_at')
             ->first();
 
-        // 承認済み（次点）
         $approvedRequest = $work->requests
             ->where('status', 1)
             ->sortByDesc('approved_at')
             ->first();
 
-        // ===========================
-        // 表示用 rests をコピー
-        // ===========================
         $displayRests = $work->rests
             ->keyBy('id')
             ->map(function ($rest) {
@@ -652,9 +595,6 @@ class AttendanceController extends Controller
                 ];
             });
 
-        // ===========================
-        // 表示用データ（初期値）
-        // ===========================
         $display = [
             'work_start' => $work->work_start,
             'work_end'   => $work->work_end,
@@ -663,14 +603,10 @@ class AttendanceController extends Controller
             'is_pending' => false,
         ];
 
-        // ===========================
-        // pending → approved の順で反映
-        // ===========================
         $targetRequest = $pendingRequest ?? $approvedRequest;
 
         if ($targetRequest) {
 
-            // 新規休憩は 1ペアずつ処理する
             $newRest = null;
 
             foreach ($targetRequest->details as $detail) {
@@ -714,9 +650,6 @@ class AttendanceController extends Controller
             $display['is_pending'] = $targetRequest->status === 0;
         }
 
-        // =============================
-        // ④ コレクションのキーを数値にリセット
-        // =============================
         $display['rests'] = $display['rests']->values();
 
         return view('admin_attendance_detail', compact(
@@ -726,7 +659,9 @@ class AttendanceController extends Controller
         ));
     }
 
-    // 承認画面表示
+    /**
+     * 管理者用承認画面表示
+     */
     public function showApprovePage($id)
     {
         $user = Auth::user();
@@ -734,13 +669,9 @@ class AttendanceController extends Controller
             abort(403);
         }
 
-        // CorrectionRequest + 関連データ取得
         $request = CorrectionRequest::with(['work.rests', 'details', 'user'])->findOrFail($id);
         $work = $request->work;
 
-        // =============================
-        // ① 既存休憩をコピー
-        // =============================
         $displayRests = $work->rests
             ->map(function ($rest) {
                 return (object)[
@@ -750,9 +681,6 @@ class AttendanceController extends Controller
                 ];
             });
 
-        // =============================
-        // ② 初期表示データ
-        // =============================
         $display = [
             'work_start' => $work->work_start,
             'work_end'   => $work->work_end,
@@ -760,9 +688,6 @@ class AttendanceController extends Controller
             'reason'     => $request->reason,
         ];
 
-        // =============================
-        // ③ request_details の反映
-        // =============================
         $newRestBuffer = null;
 
         foreach ($request->details as $detail) {
@@ -779,13 +704,11 @@ class AttendanceController extends Controller
 
                 case 'rest_start':
                     if ($detail->rest_id) {
-                        // 既存休憩の start を上書き
                         $restObj = $display['rests']->firstWhere('id', $detail->rest_id);
                         if ($restObj) {
                             $restObj->rest_start = $time;
                         }
                     } else {
-                        // 新規休憩 start（まだ push しない）
                         $newRestBuffer = (object)[
                             'id'         => null,
                             'rest_start' => $time,
@@ -796,13 +719,11 @@ class AttendanceController extends Controller
 
                 case 'rest_end':
                     if ($detail->rest_id) {
-                        // 既存休憩の end を上書き
                         $restObj = $display['rests']->firstWhere('id', $detail->rest_id);
                         if ($restObj) {
                             $restObj->rest_end = $time;
                         }
                     } elseif ($newRestBuffer) {
-                        // 新規休憩 end → push
                         $newRestBuffer->rest_end = $time;
                         $display['rests']->push($newRestBuffer);
                         $newRestBuffer = null;
@@ -811,15 +732,14 @@ class AttendanceController extends Controller
             }
         }
 
-        // =============================
-        // ④ コレクションのキーを数値にリセット
-        // =============================
         $display['rests'] = $display['rests']->values();
 
         return view('approve', compact('request', 'display'));
     }
 
-    // 承認処理
+    /**
+     * 管理者用承認機能
+     */
     public function approveCorrectionRequest($id)
     {
         $user = Auth::user();
@@ -837,7 +757,9 @@ class AttendanceController extends Controller
         return redirect()->route('admin.request.approve.show', ['id' => $request->id]);
     }
 
-    // スタッフ一覧画面
+    /**
+     * 管理者用スタッフ一覧画面表示
+     */
     public function staffList(Request $request)
     {
         $users = User::where('role', '!=', 'admin')->get();
@@ -845,33 +767,29 @@ class AttendanceController extends Controller
         return view('staff_list', compact('users'));
     }
 
-    // スタッフ別勤怠一覧
+    /**
+     * 管理者用スタッフ別月次勤怠一覧表示
+     */
     public function adminAttendanceStaff(Request $request, $id)
     {
-        // 対象スタッフ
         $staff = User::findOrFail($id);
 
-        // 表示対象月（YYYY-MM）
         $targetMonth = $request->query('month')
             ? Carbon::createFromFormat('Y-m', $request->query('month'))->startOfMonth()
             : now()->startOfMonth();
 
-        // 前月・翌月
         $prevMonth = $targetMonth->copy()->subMonth()->format('Y-m');
         $nextMonth = $targetMonth->copy()->addMonth()->format('Y-m');
 
-        // 月初〜月末
         $start = $targetMonth->copy()->startOfMonth();
         $end   = $targetMonth->copy()->endOfMonth();
 
-        // 対象スタッフの勤怠取得
         $works = Work::with('rests')
             ->where('user_id', $staff->id)
             ->whereBetween('date', [$start, $end])
             ->get()
             ->keyBy(fn($w) => $w->date->format('Y-m-d'));
 
-        // カレンダー用配列
         $days = [];
         foreach ($start->daysUntil($end) as $date) {
             $days[] = [
@@ -889,11 +807,13 @@ class AttendanceController extends Controller
         ));
     }
 
+    /**
+     * スタッフ毎月次勤怠CSV出力
+     */
     public function adminAttendanceStaffCsv(Request $request, $id)
     {
         $staff = User::findOrFail($id);
 
-        // 対象月
         $targetMonth = $request->query('month')
             ? Carbon::createFromFormat('Y-m', $request->query('month'))->startOfMonth()
             : now()->startOfMonth();
@@ -912,10 +832,8 @@ class AttendanceController extends Controller
         return response()->streamDownload(function () use ($works) {
             $handle = fopen('php://output', 'w');
 
-            // Excel文字化け防止（超重要）
             fputs($handle, "\xEF\xBB\xBF");
 
-            // ヘッダー
             fputcsv($handle, [
                 '日付',
                 '出勤',
