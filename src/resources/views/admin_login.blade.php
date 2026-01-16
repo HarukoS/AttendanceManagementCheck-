@@ -25,9 +25,9 @@ $hideHeaderNav = true;
                     <input type="email" name="email" value="{{ old('email') }}" />
                 </div>
                 <div class="form__error">
-                    @error('email')
-                    {{ $message }}
-                    @enderror
+                    @if ($errors->login->has('email'))
+                    {{ $errors->login->first('email') }}
+                    @endif
                 </div>
             </div>
         </div>
@@ -40,9 +40,9 @@ $hideHeaderNav = true;
                     <input type="password" name="password" />
                 </div>
                 <div class="form__error">
-                    @error('password')
-                    {{ $message }}
-                    @enderror
+                    @if ($errors->login->has('password'))
+                    {{ $errors->login->first('password') }}
+                    @endif
                 </div>
             </div>
         </div>

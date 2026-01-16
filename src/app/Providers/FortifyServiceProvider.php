@@ -19,6 +19,8 @@ use Laravel\Fortify\Contracts\LoginResponse;
 use Laravel\Fortify\Contracts\LogoutResponse;
 use Laravel\Fortify\Fortify;
 use Illuminate\Validation\ValidationException;
+use Laravel\Fortify\Http\Requests\LoginRequest as FortifyLoginRequest;
+use App\Actions\Fortify\LoginRequest as CustomLoginRequest;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -27,7 +29,10 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(
+            \Laravel\Fortify\Http\Requests\LoginRequest::class,
+            \App\Actions\Fortify\LoginRequest::class
+        );
     }
 
     /**
@@ -55,27 +60,17 @@ class FortifyServiceProvider extends ServiceProvider
         // 管理者／ユーザー判定付き認証
         Fortify::authenticateUsing(function (Request $request) {
 
-            $loginRequest = LoginRequest::createFrom($request);
+            /** @var \Laravel\Fortify\Http\Requests\LoginRequest $loginRequest */
+            $loginRequest = app(\Laravel\Fortify\Http\Requests\LoginRequest::class);
 
-            Validator::make(
-                $loginRequest->all(),
-                $loginRequest->rules(),
-                $loginRequest->messages()
-            )->validate();
+            $loginRequest->setContainer(app())
+                ->setRedirector(app('redirect'));
+
+            $loginRequest->validateResolved();
 
             $loginRequest->authenticate();
 
-            $user = auth()->user();
-
-            if ($request->routeIs('admin.login.submit') && $user->role !== 'admin') {
-                Auth::logout();
-
-                throw ValidationException::withMessages([
-                    'email' => '管理者アカウントではありません。',
-                ]);
-            }
-
-            return $user;
+            return auth()->user();
         });
 
         // ログイン後遷移先の分岐

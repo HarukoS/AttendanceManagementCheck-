@@ -2,7 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AttendanceController;
-use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 use Illuminate\Http\Request;
 
 Route::middleware(['auth', 'verified', 'user.role'])->group(function () {
@@ -53,9 +52,6 @@ Route::get(
 
 Route::get('/admin/login', fn() => view('admin_login'))
     ->name('admin.login');
-
-Route::post('/admin/login', [AuthenticatedSessionController::class, 'store'])
-    ->name('admin.login.submit');
 
 Route::prefix('admin')
     ->middleware(['auth', 'can:admin'])

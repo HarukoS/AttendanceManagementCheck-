@@ -784,11 +784,70 @@ class AttendanceController extends Controller
         $start = $targetMonth->copy()->startOfMonth();
         $end   = $targetMonth->copy()->endOfMonth();
 
-        $works = Work::with('rests')
+        $works = Work::with(['rests', 'requests.details'])
             ->where('user_id', $staff->id)
             ->whereBetween('date', [$start, $end])
             ->get()
             ->keyBy(fn($w) => $w->date->format('Y-m-d'));
+
+        foreach ($works as $work) {
+
+            $approvedRequest = $work->requests
+                ->where('status', 1)
+                ->sortByDesc('approved_at')
+                ->first();
+
+            if (! $approvedRequest) {
+                continue;
+            }
+
+            $newRestBuffer = [];
+
+            foreach ($approvedRequest->details as $detail) {
+                switch ($detail->type) {
+
+                    case 'work_start':
+                        $work->work_start = $detail->new_time;
+                        break;
+
+                    case 'work_end':
+                        $work->work_end = $detail->new_time;
+                        break;
+
+                    case 'rest_start':
+                        if ($detail->rest_id) {
+                            $rest = $work->rests->firstWhere('id', $detail->rest_id);
+                            if ($rest) {
+                                $rest->rest_start = $detail->new_time;
+                            }
+                        } else {
+                            $newRestBuffer[] = (object)[
+                                'rest_start' => $detail->new_time,
+                                'rest_end'   => null,
+                            ];
+                        }
+                        break;
+
+                    case 'rest_end':
+                        if ($detail->rest_id) {
+                            $rest = $work->rests->firstWhere('id', $detail->rest_id);
+                            if ($rest) {
+                                $rest->rest_end = $detail->new_time;
+                            }
+                        } else {
+                            $last = collect($newRestBuffer)->last();
+                            if ($last) {
+                                $last->rest_end = $detail->new_time;
+                            }
+                        }
+                        break;
+                }
+            }
+
+            foreach ($newRestBuffer as $newRest) {
+                $work->rests->push($newRest);
+            }
+        }
 
         $days = [];
         foreach ($start->daysUntil($end) as $date) {

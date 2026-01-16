@@ -16,6 +16,8 @@ class LoginRequest extends FormRequest
         return true;
     }
 
+    protected $errorBag = 'login';
+
     /**
      * Get the validation rules that apply to the request.
      *

@@ -49,10 +49,8 @@
             : ' ' }}
                     </td>
                     <td>
-                        @if ($work && $work->work_end)
-                        {{ floor($work->getRestMinutes() / 60) }}:
-                        {{ str_pad($work->getRestMinutes() % 60, 2, '0', STR_PAD_LEFT) }}
-                        @else
+                        @if ($work && $work->rests->whereNotNull('rest_end')->count() > 0)
+                        {{ floor($work->getRestMinutes() / 60) }}:{{ str_pad($work->getRestMinutes() % 60, 2, '0', STR_PAD_LEFT) }}
                         @endif
                     </td>
                     <td>
