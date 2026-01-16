@@ -19,7 +19,7 @@
     - MySQL 8.0.26
 
 ## テーブル設計
-
+[テーブル.pdf](https://github.com/user-attachments/files/24671408/default.pdf)
 
 ## ER図
 ![ER図](er.drawio.png)
