@@ -5,7 +5,9 @@
     他社サービスは機能や画面が複雑で使いづらいため。
 
 ## アプリケーションURL
-    - 開発環境：http://localhost/
+    - 開発環境：
+        http://localhost/login（ユーザーログイン画面）
+        http://localhost/admin/login（管理者ログイン画面）            
     - phpMyAdmin:http://localhost:8080/
 
 ## 機能一覧
@@ -39,6 +41,7 @@
     4. php artisan key:generate
     5. php artisan migrate
     6. php artisan db:seed
+    7. php artisan storage:link
 
 ### ダミーデータ説明
 ## ユーザー一覧
