@@ -37,6 +37,7 @@
     1. docker-compose exec php bash
     2. composer install
     3. .env.exampleファイルから.envを作成し、環境変数を変更
+        MAIL_FROM_ADDRESS=attendance_management@example.com
         MAIL_FROM_NAME="Coachtech Attendance Management App"
     4. php artisan key:generate
     5. php artisan migrate
